@@ -9,7 +9,7 @@ pub struct Class {
 #[derive(Debug, Clone)]
 pub enum Message {
     Display,
-    Exit,
+    Back,
 }
 
 impl Class{
