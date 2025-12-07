@@ -6,6 +6,7 @@ use crate::Command;
 
 pub mod classes;
 pub mod races;
+pub mod weapons;
 
 pub trait Pages {
     fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, frame: &mut eframe::Frame);

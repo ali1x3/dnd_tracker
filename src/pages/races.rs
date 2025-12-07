@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use eframe::{egui::{frame, Align, Button, Color32, Layout, RichText, Stroke, Ui}, epaint::MarginF32};
 
 use super::*;
-use crate::{consts, db::models::{self, AbilityScoreBonus, RaceBuilder, RacialTrait}, Model};
+use crate::{consts, db::models::{self, AbilityScoreBonus, BuildError, RaceBuilder, RacialTrait}, Model};
 
 pub struct Race {
     model: Rc<RefCell<Model>>,
@@ -11,6 +11,7 @@ pub struct Race {
     pub state: State,
     builder: RaceBuilder,
     temp: TempRace,
+    build_status: Result<(), BuildError>,
 }
 
 pub struct TempRace {
@@ -31,9 +32,32 @@ pub struct TempRace {
     trait_level: String,
 }
 
+impl TempRace {
+    fn clear(&mut self) {
+        self.race_name.clear();
+        self.move_speed.clear();
+        self.strength.counter = 0;
+        self.dexterity.counter = 0;
+        self.constitution.counter = 0;
+        self.intelligence.counter = 0;
+        self.wisdom.counter = 0;
+        self.charisma.counter = 0;
+        self.languages.clear();
+        self.skills.clear();
+        self.traits.clear();
+        self.new_language_input.clear();
+        self.trait_name.clear();
+        self.trait_level.clear();
+        self.trait_description.clear();
+    }
+}
+
 pub enum State {
     View,
     Create,
+    ConfirmCreate,
+    ErrorCreate,
+    Delete,
 }
 
 
@@ -50,6 +74,7 @@ impl Race {
             command_sender,
             state: State::View,
             builder: RaceBuilder::new(),
+            build_status: Ok(()),
             temp: TempRace {
                 race_name: String::new(),
                 move_speed: String::from("30"),
@@ -133,9 +158,7 @@ impl Pages for Race {
                         let size = [70.0, 30.0];
                         let button = ui.add_sized(size, button);
                         if button.clicked(){
-                            self.command_sender.send(Command::DeleteRace(race.id.clone()));
-                            self.model.borrow_mut().selected_race = None;
-                            self.command_sender.send(Command::LoadRaces);
+                            self.state = State::Delete;
                         };
                     });
                 });
@@ -217,8 +240,25 @@ impl Pages for Race {
                 ui.heading("click on a race!");
             }
         }
+        if self.state == State::Delete {
+            match show_confirmation_dialog(ctx, "Delete Race?", "Are you sure you want to delete?") {
+                ConfirmationResult::Pending => {},
+                ConfirmationResult::Confirmed => {
+                    self.state = State::View;
 
-        if self.state == State::Create {
+                    self.temp.clear();
+                    let selected_race = self.model.borrow_mut().selected_race.clone();
+                    self.command_sender.send(Command::DeleteRace(selected_race.unwrap().id));
+                    self.model.borrow_mut().selected_race = None;
+                    self.command_sender.send(Command::LoadRaces);
+                },
+                ConfirmationResult::Cancelled => {
+                    self.state = State::View;
+                },
+            }
+        }
+
+        if self.state == State::Create || self.state == State::ConfirmCreate || self.state == State::ErrorCreate {
             egui::Window::new("Create Race").resizable([false,false]).show(ctx, |ui| {
                 let size = [900.0, 700.0];
                 ui.set_min_size(size.into());
@@ -232,42 +272,7 @@ impl Pages for Race {
                     let size = [90.0, 30.0];
                     let button = ui.add_sized(size, button);
                     if button.clicked(){
-                        let mut builder = self.builder.clone();
-                        let move_speed = self.temp.move_speed.clone().parse::<i16>().unwrap_or_default();
-                        builder
-                            .id(consts::RACE_TABLE)
-                            .race_name(self.temp.race_name.clone())
-                            .move_speed(move_speed)
-                            .ability_score_increase(AbilityScoreBonus {
-                                strength: self.temp.strength.counter,
-                                dexterity: self.temp.dexterity.counter,
-                                constitution: self.temp.constitution.counter,
-                                intelligence: self.temp.intelligence.counter,
-                                wisdom: self.temp.wisdom.counter,
-                                charisma: self.temp.charisma.counter,
-                            });
-                        for racial_trait in self.temp.traits.clone() {
-                            builder.add_racial_trait(racial_trait);
-                        }
-
-                        for language in self.temp.languages.clone() {
-                            builder.add_language(language);
-                        }
-
-                        for skill in self.temp.skills.clone() {
-                            builder.add_skill_proficiency(skill);
-                        }
-
-                        let race = match builder.build() {
-                            Ok(race) => {
-                                let _ = self.command_sender.send(Command::CreateRace(race));
-                            },
-                            Err(_) => {
-                                println!("erorr");
-                            },
-                        };
-                        println!("{:#?}", race);
-                        let _ = self.command_sender.send(Command::LoadRaces);
+                        self.state = State::ConfirmCreate;
                     };
 
                     let text = RichText::new("Exit").size(20.0);
@@ -275,6 +280,7 @@ impl Pages for Race {
                     let size = [70.0, 30.0];
                     let button = ui.add_sized(size, button);
                     if button.clicked(){
+                        self.temp.clear();
                         self.state = State::View;
                     };
                 });
@@ -442,7 +448,68 @@ impl Pages for Race {
                     });
                 });
             });
+            if self.state == State::ConfirmCreate {
+                match show_confirmation_dialog(ctx, "", "") {
+                    ConfirmationResult::Pending => {},
+                    ConfirmationResult::Confirmed => {
+                        let mut builder = self.builder.clone();
+                        let move_speed = self.temp.move_speed.clone().parse::<i16>().unwrap_or_default();
+                        builder
+                            .id(consts::RACE_TABLE)
+                            .race_name(self.temp.race_name.clone())
+                            .move_speed(move_speed)
+                            .ability_score_increase(AbilityScoreBonus {
+                                strength: self.temp.strength.counter,
+                                dexterity: self.temp.dexterity.counter,
+                                constitution: self.temp.constitution.counter,
+                                intelligence: self.temp.intelligence.counter,
+                                wisdom: self.temp.wisdom.counter,
+                                charisma: self.temp.charisma.counter,
+                            });
+                        for racial_trait in self.temp.traits.clone() {
+                            builder.add_racial_trait(racial_trait);
+                        }
 
+                        for language in self.temp.languages.clone() {
+                            builder.add_language(language);
+                        }
+
+                        for skill in self.temp.skills.clone() {
+                            builder.add_skill_proficiency(skill);
+                        }
+
+                        let race = match builder.build() {
+                            Ok(race) => {
+                                let _ = self.command_sender.send(Command::CreateRace(race));
+                                self.temp.skills.clear();
+                                self.temp.languages.clear();
+                                self.temp.race_name.clear();
+                                self.temp.new_language_input.clear();
+                                self.temp.trait_description.clear();
+                                self.temp.trait_name.clear();
+                                self.temp.trait_level.clear();
+                                self.temp.traits.clear();
+                                self.state = State::View;
+                            },
+                            Err(err) => {
+                                self.state = State::ErrorCreate;
+                                self.build_status = Err(err);
+                            },
+                        };
+                        println!("{:#?}", race);
+                        let _ = self.command_sender.send(Command::LoadRaces);
+                    },
+                    ConfirmationResult::Cancelled => {
+                        self.state = State::Create;
+                    },
+                };
+            }
+            if self.state == State::ErrorCreate {
+                let build_status = self.build_status.clone();
+                if show_info_dialog(ctx, "Race Create Error", &build_status.err().unwrap().to_string(), true) {
+                    self.state = State::Create;
+                }
+            }
         }
     }
 }
@@ -459,3 +526,94 @@ fn make_frame(margin: MarginF32) -> egui::Frame {
     egui::Frame::default().inner_margin(margin)
 }
 
+fn show_confirmation_dialog(
+    ctx: &egui::Context,
+    title: &str,
+    message: &str,
+) -> ConfirmationResult {
+    // Draw backdrop
+    
+    let mut result = ConfirmationResult::Pending;
+    
+    // Handle ESC key
+    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        return ConfirmationResult::Cancelled;
+    }
+    
+    egui::Window::new(format!("⚠ {}", title))
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.set_min_width(350.0);
+            
+            ui.label(message);
+            ui.add_space(5.0);
+            ui.colored_label(Color32::RED, "⚠ This action cannot be undone.");
+            ui.add_space(15.0);
+            
+            ui.horizontal(|ui| {
+                ui.add_space(ui.available_width() / 2.0 - 85.0);
+                
+                if ui.add_sized([80.0, 30.0], Button::new("Cancel")).clicked() {
+                    result = ConfirmationResult::Cancelled;
+                }
+                
+                if ui.add_sized([80.0, 30.0], 
+                    Button::new(RichText::new("Confirm").color(Color32::WHITE))
+                        .fill(Color32::from_rgb(180, 0, 0))
+                ).clicked() {
+                    result = ConfirmationResult::Confirmed;
+                }
+            });
+        });
+    
+    result
+}
+
+fn show_info_dialog(
+    ctx: &egui::Context,
+    title: &str,
+    message: &str,
+    is_error: bool,
+) -> bool {
+    let mut should_close = false;
+    
+    // Handle ESC key
+    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        return true;
+    }
+    
+    let window_title = if is_error {
+        format!("⚠ {}", title)
+    } else {
+        format!("ℹ {}", title)
+    };
+    
+    egui::Window::new(window_title)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.set_min_width(350.0);
+            
+            let color = if is_error { Color32::RED } else { Color32::WHITE };
+            ui.colored_label(color, message.to_string());
+            
+            ui.horizontal(|ui| {
+                ui.add_space(ui.available_width() / 2.0 - 35.0);
+                
+                if ui.add_sized([80.0, 30.0], Button::new("Cancel")).clicked() {
+                    should_close = true;
+                }
+            });
+        });
+    
+    should_close
+}
+
+pub enum ConfirmationResult {
+    Pending,
+    Confirmed,
+    Cancelled,
+}

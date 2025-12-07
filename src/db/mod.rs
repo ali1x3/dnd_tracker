@@ -7,7 +7,8 @@ use surrealdb::engine::local::RocksDb;
 
 pub mod models;
 
-use crate::db::models::{Race, Skill};
+use crate::db::models::{Die, Race, Skill, Weapon};
+use crate::pages::weapons;
 use crate::DbResponse;
 
 use super::consts;
@@ -86,20 +87,38 @@ impl Database {
     async fn handle_command(&self, command: Command) -> Result<(), Error> {
         match command {
             Command::LoadRaces => {
-                        let races: Vec<Race> = self.client.select(consts::RACE_TABLE).await?;
-                        let _ = self.response_sender.send(DbResponse::Races(Some(races)));
-                        Ok(())
-                    },
+                let races: Vec<Race> = self.client.select(consts::RACE_TABLE).await?;
+                let _ = self.response_sender.send(DbResponse::Races(Some(races)));
+                Ok(())
+            },
             Command::CreateRace(race)=> {
-                         let response: Option<Race> = self
-                             .client
-                             .create("race")
-                             .content(race)
-                             .await?;
-                        Ok(())
-                    },
+                let response: Option<Race> = self
+                    .client
+                    .create(consts::RACE_TABLE)
+                    .content(race)
+                .await?;
+                Ok(())
+            },
             Command::DeleteRace(thing) => {
                 let race: Option<Race> = self.client.delete((thing.tb, thing.id.to_string())).await?;
+                Ok(())
+            },
+            Command::LoadWeapons => {
+                let weapons: Vec<Weapon> = self.client.select(consts::WEAPON_TABLE).await?;
+                let _ = self.response_sender.send(DbResponse::Weapons(Some(weapons)));
+                Ok(())
+            },
+            Command::CreateWeapon(weapon) => {
+                let response: Option<Weapon> = self
+                    .client
+                    .create(consts::WEAPON_TABLE)
+                    .content(weapon)
+                .await?;
+                println!("{:#?}", response);
+                Ok(())
+            },
+            Command::DeleteWeapon(thing) => {
+                let weapon: Option<Weapon> = self.client.delete((thing.tb, thing.id.to_string())).await?;
                 Ok(())
             },
         }

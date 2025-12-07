@@ -2,6 +2,45 @@ use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql;
 
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Weapon {
+    pub id: sql::Thing,
+    pub weapon_name: String,
+    pub damage_dice: Vec<Die>,
+    pub weight: f32,
+    pub description: String,
+    pub properties: Vec<String>,
+    pub damage_type: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Die {
+    D2,
+    D4,
+    D6,
+    D8,
+    D10,
+    D12,
+    D20,
+}
+
+impl Die {
+    pub fn value(&self) -> u8 {
+        match self {
+            Die::D2 => 2,
+            Die::D4 => 4,
+            Die::D6 => 6,
+            Die::D8 => 8,
+            Die::D10 => 10,
+            Die::D12 => 12,
+            Die::D20 => 20,
+        }
+    }
+}
+
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Race {
     pub id: sql::Thing,
@@ -24,7 +63,7 @@ pub struct RaceBuilder {
     languages: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BuildError {
     MissingField(&'static str),
 }
