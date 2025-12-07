@@ -1,26 +1,27 @@
-DEFINE TABLE racial_trait TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
+-- Main table
+DEFINE TABLE race TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
 
--- ------------------------------
--- FIELDS
--- ------------------------------ 
+-- Basic fields
+DEFINE FIELD race_name ON TABLE race TYPE string PERMISSIONS FULL;
+DEFINE FIELD move_speed ON TABLE race TYPE int PERMISSIONS FULL;
 
-DEFINE FIELD description ON racial_trait TYPE string PERMISSIONS FULL;
-DEFINE FIELD trait_name ON racial_trait TYPE string PERMISSIONS FULL;
+-- Nested object for ability_score_increase
+DEFINE FIELD ability_score_increase ON TABLE race TYPE object PERMISSIONS FULL;
+DEFINE FIELD ability_score_increase.strength     ON TABLE race TYPE int PERMISSIONS FULL;
+DEFINE FIELD ability_score_increase.dexterity    ON TABLE race TYPE int PERMISSIONS FULL;
+DEFINE FIELD ability_score_increase.constitution ON TABLE race TYPE int PERMISSIONS FULL;
+DEFINE FIELD ability_score_increase.intelligence ON TABLE race TYPE int PERMISSIONS FULL;
+DEFINE FIELD ability_score_increase.wisdom       ON TABLE race TYPE int PERMISSIONS FULL;
+DEFINE FIELD ability_score_increase.charisma     ON TABLE race TYPE int PERMISSIONS FULL;
 
+-- Racial traits as array of objects (with level)
+DEFINE FIELD racial_traits ON TABLE race TYPE array<object> PERMISSIONS FULL;
+DEFINE FIELD racial_traits[*].level       ON TABLE race TYPE int PERMISSIONS FULL;
+DEFINE FIELD racial_traits[*].trait_name ON TABLE race TYPE string PERMISSIONS FULL;
+DEFINE FIELD racial_traits[*].description ON TABLE race TYPE string PERMISSIONS FULL;
 
+-- Skill proficiency bonus as array of strings (enum serialized as string)
+DEFINE FIELD skill_proficiency_bonus ON TABLE race TYPE array<string> PERMISSIONS FULL;
 
-CREATE racial_trait SET
-    trait_name = "Darkvision",
-    description = "Can see in darkness up to 60 feet";
-
-CREATE racial_trait SET
-    trait_name = "Keen Senses",
-    description = "Proficiency in Perception";
-
-CREATE racial_trait SET
-    trait_name = "Fey Ancestry",
-    description = "Advantage on charm saves";
-
-CREATE racial_trait SET
-    trait_name = "Dwarven Resilience",
-    description = "Advantage vs poison and resistance";
+-- Optional: languages
+DEFINE FIELD languages ON TABLE race TYPE array<string> PERMISSIONS FULL;

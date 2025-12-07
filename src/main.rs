@@ -3,13 +3,15 @@ use std::rc::Rc;
 use std::sync::mpsc;
 
 use anyhow::Error;
-use eframe::egui::{layers, RichText};
+use eframe::egui::panel::TopBottomSide;
+use eframe::egui::{layers, Button, Layout, RichText};
 use eframe::egui::{self, CentralPanel, SidePanel, TopBottomPanel, ViewportBuilder};
 
 mod consts;
 mod db;
 mod pages;
 
+use eframe::epaint::MarginF32;
 use pages::{classes, races};
 
 use crate::pages::Pages;
@@ -29,16 +31,32 @@ struct App {
 struct Model {
     classes: Option<Vec<models::RacialTrait>>,
     selected_class: Option<models::RacialTrait>,
+    races: Option<Vec<models::Race>>,
+    selected_race: Option<models::Race>,
     label: Option<String>,
 }
 
+impl Model{
+    pub fn new() -> Self {
+        Self {
+            classes: None,
+            selected_class: None,
+            races: None,
+            selected_race: None,
+            label: None,
+        }
+    }
+}
+
 enum DbResponse {
-    Races(Option<Vec<models::RacialTrait>>),
+    Races(Option<Vec<models::Race>>),
     Label(Option<String>),
 }
 
 enum Command {
     LoadRaces,
+    CreateRace(models::Race),
+    DeleteRace(surrealdb::sql::Thing),
 }
 
 enum Screen {
@@ -78,28 +96,38 @@ impl eframe::App for App {
         SidePanel::left("test") .default_width(250.0).width_range(200.0..=500.0).show(ctx, |ui| {
             if let Ok(response) = self.response_receiver.try_recv() {
                 match response {
-                    DbResponse::Races(racial_traits) => {
-                        self.model.borrow_mut().classes = racial_traits;
+                    DbResponse::Races(races) => {
+                        self.model.borrow_mut().races = races;
                     },
                     DbResponse::Label(label) => {
                         self.model.borrow_mut().label = label;
                     },
                 }
             }
-            let binding = self.model.borrow().clone();
-            let label = match &binding.label  {
-                Some(label) => label,
-                None => "Noghint",
-            };
 
-            let races_list = self.model.borrow().classes.clone();
+            let races_list = self.model.borrow().races.clone();
             match races_list {
                 Some(races) => {
                     for race in races {
-                        if ui.button(&race.trait_name).clicked() {
-                            self.model.borrow_mut().selected_class = Some(race);
-                        };
+                        egui::Frame::default().inner_margin(MarginF32::symmetric(5.0, 3.0)).show(ui, |ui| {
+                            let text = RichText::new(&race.race_name).size(20.0);
+                            let button = Button::new(text);
+                            let size = [ui.available_width(), 38.0];
+                            let button = ui.add_sized(size, button);
+                            if button.clicked() {
+                                self.model.borrow_mut().selected_race = Some(race);
+                            };
+                        });
                     }
+                    egui::Frame::default().inner_margin(MarginF32::symmetric(5.0, 3.0)).show(ui, |ui| {
+                        let text = RichText::new("+").size(20.0);
+                        let button = Button::new(text);
+                        let size = [ui.available_width(), 38.0];
+                        let button = ui.add_sized(size, button);
+                        if button.clicked() {
+                            self.race_page.state = races::State::Create;
+                        };
+                    });
                 },
                 None => {
                     ui.heading("no races!");
@@ -111,25 +139,25 @@ impl eframe::App for App {
         CentralPanel::default().show(ctx, |ui| {
             match self.screen {
                 Screen::Home => {
-                    ui.heading("this is home");
+                    ui.heading("this is home, not yet implemented. Go to Race");
                 }
                 Screen::Classes => {
                     self.class_page.update(ctx, ui, frame);
                 }
                 Screen::Characters => {
-                    ui.heading("this is characters");
+                    ui.heading("this is characters, not yet implemented. Go to Race");
                 }
                 Screen::Races => {
                     self.race_page.update(ctx, ui, frame);
                 }
                 Screen::Spells => {
-                    ui.heading("this is spells");
+                    ui.heading("this is spells, not yet implemented. Go to Race");
                 }
                 Screen::Items => {
-                    ui.heading("this is items");
+                    ui.heading("this is items, not yet implemented. Go to Race");
                 }
                 Screen::Backgrounds => {
-                    ui.heading("this is backgrounds");
+                    ui.heading("this is backgrounds, not yet implemented. Go to Race");
                 }
                 Screen::Exit => {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -167,11 +195,7 @@ fn main() -> Result<(), Error> {
         ..Default::default()
     };
 
-    let model = Rc::new(RefCell::new(Model {
-        classes: None,
-        selected_class: None,
-        label: None,
-    }));
+    let model = Rc::new(RefCell::new(Model::new()));
 
     let app = App {
         screen: Screen::Home,

@@ -7,6 +7,7 @@ use surrealdb::engine::local::RocksDb;
 
 pub mod models;
 
+use crate::db::models::{Race, Skill};
 use crate::DbResponse;
 
 use super::consts;
@@ -46,8 +47,33 @@ pub async fn init_db(
     //    .await?;
     //let mut response = db.client.select("SELECT * FROM racial_trait").await?;
     //let traits: Vec<RacialTraits> = response.take(0)?;
-    let traits: Vec<RacialTrait> = db.client.select(consts::RACIAL_TRAITS_TABLE).await?;
-    println!("{:#?}", traits);
+
+    
+    // let response: Option<Race> = db
+    //     .client
+    //     .create("race")
+    //     .content(Race {
+    //         race_name: "elf".to_string(),
+    //         move_speed: 30,
+    //         ability_score_increase: models::AbilityScoreBonus { strength: 0, dexterity: 2, constitution: 0, intelligence: 0, wisdom: 0, charisma: 1 },
+    //         racial_traits: vec![
+    //             RacialTrait { level: 1, trait_name: "dark vision".into(), description: "see in dim light 60ft".into() },
+    //             RacialTrait { level: 2, trait_name: "Keen Senses".into(), description: "Proficiency in Perception".into() }
+    //         ],
+    //         skill_proficiency_bonus: vec![
+    //             Skill::Perception,
+    //             Skill::Stealth,
+    //         ],
+    //         id: Thing::from(("race", Id::rand())),
+    //         languages: vec![
+    //             "Elvish".into(),
+    //             "Common".into(),
+    //             "Choose 1".into(),
+    //         ],
+    //     })
+    //     .await?;
+    let races: Vec<Race> = db.client.select(consts::RACE_TABLE).await?;
+    println!("{:#?}", races);
 
     loop {
         if let Ok(command) = db.command_receiver.try_recv() {
@@ -60,9 +86,20 @@ impl Database {
     async fn handle_command(&self, command: Command) -> Result<(), Error> {
         match command {
             Command::LoadRaces => {
-
-                let traits: Vec<RacialTrait> = self.client.select(consts::RACIAL_TRAITS_TABLE).await?;
-                let _ = self.response_sender.send(DbResponse::Races(Some(traits)));
+                        let races: Vec<Race> = self.client.select(consts::RACE_TABLE).await?;
+                        let _ = self.response_sender.send(DbResponse::Races(Some(races)));
+                        Ok(())
+                    },
+            Command::CreateRace(race)=> {
+                         let response: Option<Race> = self
+                             .client
+                             .create("race")
+                             .content(race)
+                             .await?;
+                        Ok(())
+                    },
+            Command::DeleteRace(thing) => {
+                let race: Option<Race> = self.client.delete((thing.tb, thing.id.to_string())).await?;
                 Ok(())
             },
         }
